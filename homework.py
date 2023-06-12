@@ -5,6 +5,7 @@ import logging
 import requests
 import telegram
 from dotenv import load_dotenv
+from http import HTTPStatus
 from exceptions import TelegramTokenException, TelegramChatIdException
 from exceptions import PracticumTokenException, StatusCodeException
 
@@ -30,7 +31,7 @@ HOMEWORK_VERDICTS = {
 }
 
 
-def start_logging():
+def start_logging() -> logging.Logger:
     """Start logging."""
     logging.basicConfig(
         level=logging.DEBUG,
@@ -39,9 +40,10 @@ def start_logging():
     logger = logging.getLogger(__name__)
     handler = logging.StreamHandler(stream=sys.stdout)
     logger.addHandler(handler)
+    return logger
 
 
-def check_tokens():
+def check_tokens() -> None:
     """Check variables availability."""
     info = ('Отсутствует обязательная переменная '
             'окружения: {var_name} '
@@ -64,7 +66,7 @@ def check_tokens():
         )
 
 
-def send_message(bot, message):
+def send_message(bot: telegram.Bot, message: str) -> None:
     """Send message in Telegram."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
@@ -74,51 +76,54 @@ def send_message(bot, message):
                       f'сообщение {message}. {error}')
 
 
-def get_api_answer(timestamp):
+def get_api_answer(timestamp: int) -> dict or None:
     """Get homework statuses."""
     try:
         homework_statuses = requests.get(url=ENDPOINT,
                                          headers=HEADERS,
                                          params={'from_date': timestamp})
         status_code = homework_statuses.status_code
-        if status_code != 200:
+        if status_code != HTTPStatus.OK:
             info = (f'Эндпоинт {ENDPOINT} недоступен. '
                     f'Код ответа API: {status_code}')
             raise StatusCodeException(info)
-        else:
-            return homework_statuses.json()
+        return homework_statuses.json()
     except requests.RequestException as error:
         logging.error(error)
 
 
-def check_response(response):
+def check_response(response: dict) -> None:
     """Check API response."""
-    if type(response) is not dict:
+    if not isinstance(response, dict):
         raise TypeError('type(response) is not dict')
     if response.get('code') == 'not_authenticated':
         raise TypeError(response.get('message'))
     if response.get('code') == 'UnknownError':
         raise TypeError(response.get('error'))
-    if (type(response.get('homeworks'))) is not list:
+    if not isinstance(response.get('homeworks'), list):
         raise TypeError('type(response.get(\'homeworks\')) is not list')
 
 
-def parse_status(homework):
+def parse_status(homework: dict) -> str:
     """Parse response status."""
-    if 'homework_name' in homework.keys():
-        homework_name = homework['homework_name']
-    else:
+    if 'homework_name' not in homework:
         raise IndexError('No key \'homework_name\' in homework')
-    if homework['status'] in HOMEWORK_VERDICTS:
-        verdict = HOMEWORK_VERDICTS[homework['status']]
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    else:
-        raise IndexError('No such key homework[status] in HOMEWORK_VERDICTS')
+    if 'status' not in homework:
+        raise IndexError('No such key "status" in homework')
+    if not homework['status'] in HOMEWORK_VERDICTS:
+        raise IndexError('No such key homework[status] '
+                         'in HOMEWORK_VERDICTS')
+    homework_name = homework['homework_name']
+    verdict = HOMEWORK_VERDICTS[homework['status']]
+    return ('Изменился статус проверки работы '
+            f'"{homework_name}". {verdict}')
 
 
-def main():
+def main() -> None:
     """Основная логика работы бота."""
-    start_logging()
+    logger = start_logging()
+    logger.info("Start logging")
+
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     message = None
