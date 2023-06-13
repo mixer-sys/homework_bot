@@ -2,10 +2,10 @@ import os
 import sys
 import time
 import logging
+from http import HTTPStatus
 import requests
 import telegram
 from dotenv import load_dotenv
-from http import HTTPStatus
 from exceptions import TelegramTokenException, TelegramChatIdException
 from exceptions import PracticumTokenException, StatusCodeException
 
@@ -14,10 +14,15 @@ load_dotenv()
 VAR_NAME_PRACTICUM_TOKEN = 'PRACTICUM_TOKEN'
 VAR_NAME_TELEGRAM_TOKEN = 'TELEGRAM_TOKEN'
 VAR_NAME_TELEGRAM_CHAT_ID = 'TELEGRAM_CHAT_ID'
+
 PRACTICUM_TOKEN = os.getenv(VAR_NAME_PRACTICUM_TOKEN)
 TELEGRAM_TOKEN = os.getenv(VAR_NAME_TELEGRAM_TOKEN)
 TELEGRAM_CHAT_ID = os.getenv(VAR_NAME_TELEGRAM_CHAT_ID)
-
+TOKENS = [
+    (VAR_NAME_PRACTICUM_TOKEN, PRACTICUM_TOKEN, PracticumTokenException),
+    (VAR_NAME_TELEGRAM_TOKEN, TELEGRAM_TOKEN, TelegramTokenException),
+    (VAR_NAME_TELEGRAM_CHAT_ID, TELEGRAM_CHAT_ID, TelegramChatIdException),
+]
 FROM_DATE = 0
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -41,6 +46,23 @@ def start_logging() -> logging.Logger:
     handler = logging.StreamHandler(stream=sys.stdout)
     logger.addHandler(handler)
     return logger
+
+
+logger = start_logging()
+logger.info("Start logging")
+
+
+def check_tokens_additional() -> None:
+    """Check variables availability."""
+    info = ('Отсутствует обязательная переменная '
+            'окружения: {var_name} '
+            'Программа принудительно остановлена.')
+    for var_name, token, exception in TOKENS:
+        if token is None:
+            logger.critical(info.format(var_name=var_name))
+            raise exception(
+                info.format(var_name=var_name)
+            )
 
 
 def check_tokens() -> None:
@@ -70,10 +92,10 @@ def send_message(bot: telegram.Bot, message: str) -> None:
     """Send message in Telegram."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-        logging.debug(f'Бот отправил сообщение {message}')
+        logger.debug(f'Бот отправил сообщение {message}')
     except Exception as error:
-        logging.error('Бот: не удалось отправить '
-                      f'сообщение {message}. {error}')
+        logger.error('Бот: не удалось отправить '
+                     f'сообщение {message}. {error}')
 
 
 def get_api_answer(timestamp: int) -> dict or None:
@@ -89,10 +111,10 @@ def get_api_answer(timestamp: int) -> dict or None:
             raise StatusCodeException(info)
         return homework_statuses.json()
     except requests.RequestException as error:
-        logging.error(error)
+        logger.error(error)
 
 
-def check_response(response: dict) -> None:
+def check_response(response: dict) -> dict or None:
     """Check API response."""
     if not isinstance(response, dict):
         raise TypeError('type(response) is not dict')
@@ -102,6 +124,7 @@ def check_response(response: dict) -> None:
         raise TypeError(response.get('error'))
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('type(response.get(\'homeworks\')) is not list')
+    return response.get('homeworks')[0]
 
 
 def parse_status(homework: dict) -> str:
@@ -121,9 +144,6 @@ def parse_status(homework: dict) -> str:
 
 def main() -> None:
     """Основная логика работы бота."""
-    logger = start_logging()
-    logger.info("Start logging")
-
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     message = None
@@ -131,12 +151,12 @@ def main() -> None:
     while True:
         try:
             api_answer = get_api_answer(timestamp=FROM_DATE)
-            check_response(api_answer)
-            homework = api_answer.get('homeworks')[0]
+            homework = check_response(api_answer)
+            print(f'HOMEWORK {homework}')
             new_message = parse_status(homework)
         except Exception as error:
             new_message = f'Сбой в работе программы: {error}'
-            logging.error(new_message)
+            logger.error(new_message)
         finally:
             if new_message != message:
                 message = new_message
