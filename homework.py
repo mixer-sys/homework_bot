@@ -72,17 +72,17 @@ def check_tokens() -> None:
             'Программа принудительно остановлена.')
 
     if PRACTICUM_TOKEN is None:
-        logging.critical(info.format(var_name=VAR_NAME_PRACTICUM_TOKEN))
+        logger.critical(info.format(var_name=VAR_NAME_PRACTICUM_TOKEN))
         raise PracticumTokenException(
             info.format(var_name=VAR_NAME_PRACTICUM_TOKEN)
         )
     if TELEGRAM_TOKEN is None:
-        logging.critical(info.format(var_name=VAR_NAME_TELEGRAM_TOKEN))
+        logger.critical(info.format(var_name=VAR_NAME_TELEGRAM_TOKEN))
         raise TelegramTokenException(
             info.format(var_name=VAR_NAME_TELEGRAM_TOKEN)
         )
     if TELEGRAM_CHAT_ID is None:
-        logging.critical(info.format(var_name=VAR_NAME_TELEGRAM_CHAT_ID))
+        logger.critical(info.format(var_name=VAR_NAME_TELEGRAM_CHAT_ID))
         raise TelegramChatIdException(
             info.format(var_name=VAR_NAME_TELEGRAM_CHAT_ID)
         )
