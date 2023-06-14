@@ -124,6 +124,8 @@ def check_response(response: dict) -> dict or None:
         raise TypeError(response.get('error'))
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('type(response.get(\'homeworks\')) is not list')
+    if len(response.get('homeworks')) == 0:
+        raise IndexError('len(response.get(\'homeworks\')) == 0')
     return response.get('homeworks')[0]
 
 
@@ -152,7 +154,6 @@ def main() -> None:
         try:
             api_answer = get_api_answer(timestamp=FROM_DATE)
             homework = check_response(api_answer)
-            print(f'HOMEWORK {homework}')
             new_message = parse_status(homework)
         except Exception as error:
             new_message = f'Сбой в работе программы: {error}'
